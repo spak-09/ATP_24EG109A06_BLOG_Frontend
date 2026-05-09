@@ -1,0 +1,119 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
+import { apiClient } from "../utils/api";
+import { useAuth } from "../store/authStore";
+
+import {
+  articleCardClass,
+  articleTitle,
+  articleExcerpt,
+  articleMeta,
+  ghostBtn,
+  loadingClass,
+  errorClass,
+  emptyStateClass,
+  articleStatusActive,
+  articleStatusDeleted,
+  userInfoContainer,
+  userNameText,
+  userActionBtnBase,
+  userActionBtnActive,
+  userActionBtnInactive,
+} from "../styles/common";
+
+function UsersList() {
+  const navigate = useNavigate();
+  const user = useAuth((state) => state.currentUser);
+
+  const [userList, setuserList] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  console.log("user in author profile",user)
+  
+  useEffect(() => {
+    if (!user) return;
+
+    const getUsersList = async () => {
+     
+      try {
+        setLoading(true)
+       //read articles of current author
+      let res = await apiClient.get(`/admin-api/users`)
+       if(res.status === 200){
+        setuserList(Array.isArray(res.data.payload) ? res.data.payload : [])
+       }
+       //update articles state
+
+      } catch (err) {
+        console.log(err);
+        setError(err.response?.data?.error || "Failed to fetch Users List");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    getUsersList();
+  }, [user]);
+
+  const userDelORactivate = async (user) => {
+    try{
+      setLoading(true)
+      let res = await apiClient.patch(`/admin-api/users`,
+        {
+          "userId": user._id,
+          "isUserActive": !user.isUserActive
+        }
+      )
+        if (res.status === 200) {
+      setuserList((prev) =>
+        prev.map((u) =>
+          u._id === user._id
+            ? { ...u, isUserActive: !u.isUserActive }
+            : u
+        )
+      );
+    }
+    }catch (err) {
+      console.log(err);
+      setError("Failed to update user");
+    }finally{
+      setLoading(false)
+    }
+  };
+
+  if (loading) return <p className={loadingClass}>Loading users...</p>;
+  if (error) return <p className={errorClass}>{error}</p>;
+
+  const users = Array.isArray(userList) ? userList : [];
+
+  if (users.length === 0) {
+    return <div className={emptyStateClass}>No users.</div>;
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-6">
+      {users.map((user) => (
+        <div key={user._id} className={`${articleCardClass} relative flex flex-col rounded-3xl`}>
+          {/* Status Badge */}
+          <span className={user.isUserActive? articleStatusActive : articleStatusDeleted}>
+            {
+              user.isUserActive ? "ACTIVE" : "DELETED"
+            }
+          </span>
+          <div className={userInfoContainer}>
+            <p className={userNameText}>
+              {user.firstName}
+            </p>
+            <button className={`${userActionBtnBase} ${user.isUserActive? userActionBtnActive : userActionBtnInactive}`} onClick={() => userDelORactivate(user)}>
+              {user.isUserActive ? "Deactivate" : "Activate"}
+            </button>
+            
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default UsersList;
